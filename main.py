@@ -192,7 +192,7 @@ def getNeighboursJIndex(k_x,k_y):
     union = lx+ly
     if len(union) == 0:
         return 0
-    n = pd.DataFrame(union)[0].unique()
+    n = len(pd.DataFrame(union)[0].unique())
     return K/n
 
 
