@@ -6,7 +6,7 @@ import numpy as np
 import spacy
 spacy.load('en')
 import nltk
-#nltk.download("wordnet")
+#nltk.download("wordnet") (To be done once only?)
 from spacy.lang.en import English
 parser = English()
 import nltk

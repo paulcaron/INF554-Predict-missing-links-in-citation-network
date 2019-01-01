@@ -51,11 +51,16 @@ def getJournalMatrix(node_info,training_set):
         if e[2]==1:
             Moui[i1,i2]+=1
             Moui[i2,i1]+=1
+            
+    number_not_zero = 0
     for i in range(Mtout.shape[0]):
         for j in range(Mtout.shape[0]):
             if Mtout[i, j] !=0:
+                number_not_zero+=1
                 Moui[i, j] /= Mtout[i, j]
                 Moui[j, i] = Moui[i, j] 
+    default_value = Moui.mean() * Mtout.shape[0] * Mtout.shape[0] / number_not_zero
+    Moui[Mtout==0] = default_value
                 
     return Moui,jindices
         

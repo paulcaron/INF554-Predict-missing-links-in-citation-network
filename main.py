@@ -18,10 +18,6 @@ node_edges = pd.read_csv("data/training_set.csv", delimiter=" ", names = ["Sourc
 
 node_edges = shuffle(node_edges)
 
-
-testing_set = node_edges[:10000]
-training_set = node_edges[10000:]
-
 n_topics_title = 20
 n_topics_abstract = 20
 
@@ -35,14 +31,18 @@ nv = node_info[["Id","Abstract"]].values
 texts = []
 hach = {}
 
+print("Loop words asbstracts...")
 for i in range(len(nv)):
     element = nv[i]
     title = element[1]
     Id = element[0]
     hach[Id] = i
     texts.append(title)
-    
+print("...Done")
+
+print("Model abstract...")
 lsimodel_abstract, corpus_abstract = LSI_topicExtraction(texts, n_topics_abstract)
+print("...Done")
 
 
 nv = node_info[["Id","Title"]].values
@@ -50,24 +50,33 @@ nv = node_info[["Id","Title"]].values
 texts = []
 hach = {}
 
+print("Loop words titles...")
 for i in range(len(nv)):
     element = nv[i]
     title = element[1]
     Id = element[0]
     hach[Id] = i
     texts.append(title)
-    
+
+print("...Done")
+
+print("Model title...")
 lsimodel_title, corpus_title = LSI_topicExtraction(texts, n_topics_title)
-    
+print("...Done")  
 
 
 #Matrice des journeaux
 
+print("Journals matrix...")
 journalMatrix,jindices = getJournalMatrix(node_info,training_set)
-
+print("...Done")
 #Matrice es auteurs
-
+print("Authors matrix...")
 authorMatrix,aindices = getAuthorMatrix(node_info,training_set)
+print("...Done")
+print("Mean Year Gap...")
+mean_gap_year = training_set["Pubyear"].dropna().std()
+print("...Done")
 
 
 def getTitleCosine(k_x,k_y):
@@ -144,8 +153,13 @@ def getJournalSimilarity(k_x,k_y):
         j_y = "NO_JOURNAL"
     
     return journalMatrix[jindices[j_x]][jindices[j_y]]
-    
 
+def getYearDifference(k_x, k_y):
+    j_x = node_info["Pubyear"].values[hach[k_x]]
+    j_y = node_info["Pubyear"].values[hach[k_y]]
+    if np.isnan(j_x) or np.isnan(j_y):
+        return mean_gap_year
+    return abs(j_x - j_y)
 
 def get_features(k_x,k_y):
     authorSimilarity = getAuthorSimilarityBis(k_x, k_y)
@@ -154,30 +168,80 @@ def get_features(k_x,k_y):
     titleCosine = getTitleCosine(k_x,k_y)  
     return [authorSimilarity, journalSimilarity, abstractCosine, titleCosine]
 
-ev = training_set.values
+ev = node_edges.values
 
-X_train=[]
-Y_train=[]
+print("Compute X_train, Y_train...")
+
+X_data=[]
+Y_data=[]
 n = len(ev)
 for element in ev:
-    X_train.append(get_features(element[0],element[1]))
-    Y_train.append([element[2]])
-    p = len(X_train)
+    X_data.append(get_features(element[0],element[1]))
+    Y_data.append([element[2]])
+    p = len(X_data)
     if(p % (n//100) == 0):
-        print(p)
+        print(p//(n//100))
+print("...Done")
 
-    
+import sklearn
 from sklearn.metrics import precision_recall_fscore_support
+from sklearn.model_selection import cross_val_score
+
 from sklearn.svm import LinearSVC
 
-classifier = LinearSVC()
+from sklearn.neural_network import MLPClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
+
+
+
+classifiers = [
+    LinearSVC(),
+    KNeighborsClassifier(),
+    SVC(kernel="linear", C=0.025),
+    SVC(gamma=2, C=1),
+    GaussianProcessClassifier(1.0 * RBF(1.0)),
+    DecisionTreeClassifier(max_depth=5),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    MLPClassifier(alpha=1),
+    AdaBoostClassifier(),
+    GaussianNB(),
+    QuadraticDiscriminantAnalysis()
+]
+
+cross_val_scores =  []
+
+print("Compute 11 cross_val_score...")
+for classifier in classifiers:
+    cross_val_scores.append(cross_val_score(X_data, Y_data, scoring='f1', cv=10))
+    print("...cross_val_score computed...")
+print("...All scores computed")
+
+
+
+
+
+
+"""
 print("Fitting...")
 classifier.fit(X_train, Y_train)
 print("...Done")
 
 ev_test = testing_set.values
+"""
 
+
+
+
+
+"""
 print("Compute X_test, Y_true...")
 X_test=[]
 Y_true=[]
@@ -194,13 +258,6 @@ print("...Done")
 Y_pred = classifier.predict(X_test)
 
 scores = precision_recall_fscore_support(Y_true, Y_pred)
-
-
-
-
-
-
-
 
 node_edges_to_predict = pd.read_csv("data/testing_set.csv", delimiter=" ", names = ["Source","Target"])
 ev_to_predict = node_edges_to_predict.values
@@ -225,37 +282,11 @@ with open("data/improved_predictions.csv","w") as pred1:
         csv_out.writerow(row)
 
 
+"""
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#e = Estimator(node_info,training_set,hach,lsimodel_title,corpus_title,lsimodel_abstract,corpus_abstract)
 
 """
 X_train,Y_train=e.train(10)
