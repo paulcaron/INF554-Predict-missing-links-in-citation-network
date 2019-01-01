@@ -218,6 +218,9 @@ classifiers = [
 
 cross_val_scores =  []
 
+
+
+
 print("Compute 11 cross_val_score...")
 for classifier in classifiers:
     cross_val_scores.append(cross_val_score(X_data, Y_data, scoring='f1', cv=10))
