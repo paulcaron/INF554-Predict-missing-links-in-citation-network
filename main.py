@@ -18,16 +18,19 @@ node_edges = pd.read_csv("data/training_set.csv", delimiter=" ", names = ["Sourc
 
 node_edges = shuffle(node_edges)
 
+
+
+testing_set = node_edges[:10000]
+training_set = node_edges[10000:]
+
 n_topics_title = 20
 n_topics_abstract = 20
-
-
 
 
 #creation du modèle LSI
 
 nv = node_info[["Id","Abstract"]].values
-
+ev = training_set.values
 texts = []
 hach = {}
 
@@ -75,7 +78,22 @@ print("Authors matrix...")
 authorMatrix,aindices = getAuthorMatrix(node_info,training_set)
 print("...Done")
 print("Mean Year Gap...")
-mean_gap_year = training_set["Pubyear"].dropna().std()
+mean_gap_year = node_info["Pubyear"].dropna().std()
+print("...Done")
+
+
+
+print("Paper neighbours...")
+paperNeighbours = {}
+for i in node_info["Id"].values:
+    paperNeighbours[i] = []
+    
+for edge in ev:
+    a = edge
+    if edge[2] == 1:
+        paperNeighbours[edge[0]].append(edge[1])
+        paperNeighbours[edge[1]].append(edge[1])
+
 print("...Done")
 
 
@@ -161,26 +179,62 @@ def getYearDifference(k_x, k_y):
         return mean_gap_year
     return abs(j_x - j_y)
 
+
+
+def getNeighboursJIndex(k_x,k_y):
+    lx = paperNeighbours[k_x]
+    ly = paperNeighbours[k_y]
+    
+    K = 0
+    for i in lx:
+        if i in ly:
+            K += 1
+    union = lx+ly
+    if len(union) == 0:
+        return 0
+    n = pd.DataFrame(union)[0].unique()
+    return K/n
+
+
+
+
 def get_features(k_x,k_y):
     authorSimilarity = getAuthorSimilarityBis(k_x, k_y)
     journalSimilarity = getJournalSimilarity(k_x, k_y)
     abstractCosine = getAbstractCosine(k_x,k_y)
     titleCosine = getTitleCosine(k_x,k_y)  
-    return [authorSimilarity, journalSimilarity, abstractCosine, titleCosine]
+    yearDifference = getYearDifference(k_x,k_y)
+    neighboursJIndex = getNeighboursJIndex(k_x,k_y)
+    return [authorSimilarity, journalSimilarity, abstractCosine, titleCosine, yearDifference,neighboursJIndex]
 
 ev = node_edges.values
 
 print("Compute X_train, Y_train...")
 
-X_data=[]
-Y_data=[]
+X_train=[]
+Y_train=[]
 n = len(ev)
 for element in ev:
-    X_data.append(get_features(element[0],element[1]))
-    Y_data.append([element[2]])
-    p = len(X_data)
+    X_train.append(get_features(element[0],element[1]))
+    Y_train.append([element[2]])
+    p = len(X_train)
     if(p % (n//100) == 0):
         print(p//(n//100))
+print("...Done")
+
+
+ev_test = testing_set.values
+
+print("Compute X_test, Y_true...")
+X_test=[]
+Y_true=[]
+n_test = len(ev_test)
+for element in ev_test:
+    X_test.append(get_features(element[0],element[1]))
+    Y_true.append([element[2]])
+    p = len(X_test)
+    if(p % (n_test//100) == 0):
+        print(p//(n_test//100))
 print("...Done")
 
 import sklearn
@@ -199,18 +253,25 @@ from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
+from sklearn.metrics import f1_score
 
+
+
+X_train = np.array(X_train)
+X_test = np.array(X_test)
+Y_train = np.array(Y_train)
+Y_true = np.array(Y_true)
 
 
 classifiers = [
-    LinearSVC(),
+    LinearSVC(verbose=1),
     KNeighborsClassifier(),
-    SVC(kernel="linear", C=0.025),
-    SVC(gamma=2, C=1),
-    GaussianProcessClassifier(1.0 * RBF(1.0)),
+    #SVC(kernel="linear", C=0.025,verbose=1),
+    #SVC(gamma=2, C=1,verbose=1),
+    #GaussianProcessClassifier(1.0 * RBF(1.0)),
     DecisionTreeClassifier(max_depth=5),
-    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
-    MLPClassifier(alpha=1),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1,verbose=1),
+    MLPClassifier(verbose=1),
     AdaBoostClassifier(),
     GaussianNB(),
     QuadraticDiscriminantAnalysis()
@@ -220,8 +281,17 @@ cross_val_scores =  []
 
 print("Compute 11 cross_val_score...")
 for classifier in classifiers:
-    cross_val_scores.append(cross_val_score(X_data, Y_data, scoring='f1', cv=10))
-    print("...cross_val_score computed...")
+    #cross_val_scores.append(cross_val_score(classifier,X=X_data, y=Y_data, scoring='f1', cv=10,verbose=1))
+    
+    print(str(type(classifier)) + " fitting...")
+    classifier.fit(X_train, Y_train)
+    print("...Fitting done")
+    
+    Y_pred = classifier.predict(X_test)
+    score = f1_score(Y_true,Y_pred)
+
+    print(str(type(classifier)) + " : " + str(score) )
+    #print("...cross_val_score computed...")
 print("...All scores computed")
 
 

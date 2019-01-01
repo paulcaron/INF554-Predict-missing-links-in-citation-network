@@ -91,9 +91,9 @@ class Network():
         # TODO
         self.alpha = learning_rate
         self.model = keras.models.Sequential([
-            keras.layers.Dense(densenumber,input_dim=40,activation=tf.nn.relu),
-            keras.layers.Dropout(0.5, noise_shape=None, seed=None),      
-            keras.layers.Dense(20,activation=tf.nn.relu),
+            keras.layers.Dense(densenumber,input_dim=5,activation=tf.nn.relu),
+            keras.layers.Dropout(0.95, noise_shape=None, seed=None),      
+            keras.layers.Dense(2000,activation=tf.nn.relu),
             keras.layers.Dense(1, activation=tf.nn.softmax)
         ])
         self.model.compile(optimizer=keras.optimizers.RMSprop(), 
