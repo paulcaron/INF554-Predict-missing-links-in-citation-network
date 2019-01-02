@@ -92,9 +92,20 @@ for edge in ev:
     a = edge
     if edge[2] == 1:
         paperNeighbours[edge[0]].append(edge[1])
-        paperNeighbours[edge[1]].append(edge[1])
+        paperNeighbours[edge[1]].append(edge[0])
 
 print("...Done")
+
+
+def aplatir(dic):
+	"""
+	Aplatir une liste de listes rapidement
+	"""
+	A = []
+	for d in dic:
+		for k in d:
+			A.append(k)
+	return A
 
 
 def getTitleCosine(k_x,k_y):
@@ -184,7 +195,12 @@ def getYearDifference(k_x, k_y):
 def getNeighboursJIndex(k_x,k_y):
     lx = paperNeighbours[k_x]
     ly = paperNeighbours[k_y]
-    
+    """
+    if k_x in ly:
+        ly.remove(k_x)
+    if k_y in lx:
+        lx.remove(k_y)
+    """
     K = 0
     for i in lx:
         if i in ly:
@@ -193,6 +209,7 @@ def getNeighboursJIndex(k_x,k_y):
     if len(union) == 0:
         return 0
     n = len(pd.DataFrame(union)[0].unique())
+    
     return K/n
 
 
@@ -255,6 +272,8 @@ from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 
 from sklearn.metrics import f1_score
 
+from sklearn.ensemble import GradientBoostingClassifier
+
 
 
 X_train = np.array(X_train)
@@ -274,10 +293,14 @@ classifiers = [
     MLPClassifier(verbose=1),
     AdaBoostClassifier(),
     GaussianNB(),
-    QuadraticDiscriminantAnalysis()
+    QuadraticDiscriminantAnalysis(),
+    GradientBoostingClassifier()
 ]
 
-cross_val_scores =  []
+scores =  []
+
+
+
 
 print("Compute 11 cross_val_score...")
 for classifier in classifiers:
@@ -289,7 +312,7 @@ for classifier in classifiers:
     
     Y_pred = classifier.predict(X_test)
     score = f1_score(Y_true,Y_pred)
-
+    scores.append(score)
     print(str(type(classifier)) + " : " + str(score) )
     #print("...cross_val_score computed...")
 print("...All scores computed")
