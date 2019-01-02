@@ -297,9 +297,30 @@ classifiers = [
     GradientBoostingClassifier()
 ]
 
-scores =  []
+n_estimators_for_random_forest = [5, 10, 20]
+max_features_for_random_forest = [1, 2, 3, 4, 5, 6]
+max_depth_for_random_forest = [5, 10, None]
 
+random_forest_classfiers = {}
+random_forest_scores = {}
 
+print("Compute random forest classifiers with various features...")
+for n_estimators in n_estimators_for_random_forest:
+    for max_features in max_features_for_random_forest:
+        for max_depth in max_depth_for_random_forest:
+            random_forest_classfiers[(n_estimators, max_features, max_depth)] = RandomForestClassifier(max_depth=max_depth, n_estimators=n_estimators, max_features=max_features)
+
+for key_classifier in random_forest_classfiers.keys():
+    classifier = random_forest_classfiers[key_classifier]
+    print(key_classifier + " fitting...")
+    classifier.fit(X_train, Y_train)
+    print("...fitting done")
+    
+    Y_pred = classifier.predict(X_test)
+    score = f1_score(Y_true,Y_pred)
+    random_forest_scores[key_classifier] = score
+
+print("...All scores computed for random forests")
 
 
 print("Compute 11 cross_val_score...")
