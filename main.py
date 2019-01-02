@@ -85,6 +85,8 @@ print("...Done")
 
 print("Paper neighbours...")
 paperNeighbours = {}
+
+
 for i in node_info["Id"].values:
     paperNeighbours[i] = []
     
@@ -93,6 +95,9 @@ for edge in ev:
     if edge[2] == 1:
         paperNeighbours[edge[0]].append(edge[1])
         paperNeighbours[edge[1]].append(edge[0])
+
+print("...Done")
+
 
 print("...Done")
 
@@ -193,14 +198,10 @@ def getYearDifference(k_x, k_y):
 
 
 def getNeighboursJIndex(k_x,k_y):
-    lx = paperNeighbours[k_x]
-    ly = paperNeighbours[k_y]
-    """
-    if k_x in ly:
-        ly.remove(k_x)
-    if k_y in lx:
-        lx.remove(k_y)
-    """
+    lx = paperNeighbours[k_x][:]
+    ly = paperNeighbours[k_y][:]
+
+    
     K = 0
     for i in lx:
         if i in ly:
@@ -209,12 +210,60 @@ def getNeighboursJIndex(k_x,k_y):
     if len(union) == 0:
         return 0
     n = len(pd.DataFrame(union)[0].unique())
-    
+    if k_x in ly:
+        K -= 2
+        n -= 2
+        
+    if n <= 0:
+        return 0
+
     return K/n
 
+def get2NeighboursJIndex(k_x,k_y):
+    lx = paperNeighbours[k_x]
+    ly = paperNeighbours[k_y]
+    
+    neighbors_2_kx = []
+    neighbors_2_ky = []
+    
+    for i in lx:
+        if i != k_y:
+            neighbors_2_kx += paperNeighbours[i]
+    for i in ly:
+        if i != k_x:
+            neighbors_2_ky += paperNeighbours[i]
+    
+    K = 0
+    nx = 0
+    ny = 0
+    
+    for neighbor2 in neighbors_2_kx:
+        if neighbor2 != k_x:
+            nx+=1
+            if neighbor2 in ly:
+                K+=1
+              
+    for neighbor2 in neighbors_2_ky:
+        if neighbor2 != k_y:
+            ny+=1
+            
+    if nx*ny==0:
+        return 0
+    
+    return 2*K/(nx+ny)
 
-
-
+def getDegree(k_x,k_y):
+    lx = paperNeighbours[k_x]
+    ly = paperNeighbours[k_y]
+    nx=len(lx)
+    ny=len(ly)
+    
+    if k_y in lx:
+        nx -= 1
+        ny -= 1
+        
+    return nx, ny
+    
 def get_features(k_x,k_y):
     authorSimilarity = getAuthorSimilarityBis(k_x, k_y)
     journalSimilarity = getJournalSimilarity(k_x, k_y)
@@ -222,9 +271,11 @@ def get_features(k_x,k_y):
     titleCosine = getTitleCosine(k_x,k_y)  
     yearDifference = getYearDifference(k_x,k_y)
     neighboursJIndex = getNeighboursJIndex(k_x,k_y)
-    return [authorSimilarity, journalSimilarity, abstractCosine, titleCosine, yearDifference,neighboursJIndex]
+    neighbours2JIndex = get2NeighboursJIndex(k_x,k_y)
+    k_x_DegreeIndex, k_y_DegreeIndex = getDegree(k_x,k_y)
+    return [authorSimilarity, journalSimilarity, abstractCosine, titleCosine, yearDifference,neighboursJIndex, neighbours2JIndex, k_x_DegreeIndex, k_y_DegreeIndex]
 
-ev = node_edges.values
+ev = training_set.values
 
 print("Compute X_train, Y_train...")
 
@@ -289,6 +340,7 @@ classifiers = [
     #SVC(gamma=2, C=1,verbose=1),
     #GaussianProcessClassifier(1.0 * RBF(1.0)),
     DecisionTreeClassifier(max_depth=5),
+    DecisionTreeClassifier(n_estimators=5, max_features=1, max_depth=5),
     RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1,verbose=1),
     MLPClassifier(verbose=1),
     AdaBoostClassifier(),
@@ -304,6 +356,7 @@ max_depth_for_random_forest = [5, 10, None]
 random_forest_classfiers = {}
 random_forest_scores = {}
 
+"""
 print("Compute random forest classifiers with various features...")
 for n_estimators in n_estimators_for_random_forest:
     for max_features in max_features_for_random_forest:
@@ -312,17 +365,18 @@ for n_estimators in n_estimators_for_random_forest:
 
 for key_classifier in random_forest_classfiers.keys():
     classifier = random_forest_classfiers[key_classifier]
-    print(key_classifier + " fitting...")
     classifier.fit(X_train, Y_train)
-    print("...fitting done")
     
     Y_pred = classifier.predict(X_test)
     score = f1_score(Y_true,Y_pred)
+    print(str(key_classifier) + " : " + str(score))
+
     random_forest_scores[key_classifier] = score
 
 print("...All scores computed for random forests")
+"""
 
-
+scores = []
 print("Compute 11 cross_val_score...")
 for classifier in classifiers:
     #cross_val_scores.append(cross_val_score(classifier,X=X_data, y=Y_data, scoring='f1', cv=10,verbose=1))
@@ -390,7 +444,7 @@ y_final_predict = classifier.predict(X_to_predict)
 prediction = list(y_final_predict)
 predictions_SVM = zip(range(len(y_final_predict)), prediction)
 
-with open("data/improved_predictions.csv","w") as pred1:
+with open("data/improved_predictions2.csv","w") as pred1:
     csv_out = csv.writer(pred1)
     for row in predictions_SVM:
         csv_out.writerow(row)
