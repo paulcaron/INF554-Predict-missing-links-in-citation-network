@@ -79,7 +79,7 @@ def texttokens(texts):
 
 def LSI_topicExtraction(texts, n_topics):
 	"""
-	Extraction des topics avec l'algorithme LDA
+	Extraction des topics avec l'algorithme LSI
 	"""
 
 
@@ -96,5 +96,25 @@ def LSI_topicExtraction(texts, n_topics):
 	lsimodel = gensim.models.LsiModel(corpus, id2word=dictionary,num_topics=n_topics)
 
 	return lsimodel, corpus
+
+def LDA_topicExtraction(texts, n_topics):
+	"""
+	Extraction des topics avec l'algorithme LDA
+	"""
+
+
+	print("Tokenization...")
+	text_data=texttokens(texts)
+	print("Dictionarisation...")
+	dictionary = corpora.Dictionary(text_data)
+	print("Corpusisation...")
+	corpus = [dictionary.doc2bow(text) for text in text_data]
+    
+
+	#print(corpus)
+	print("modelization...")
+	ldamodel = gensim.models.LdaModel(corpus, id2word=dictionary,num_topics=n_topics)
+
+	return ldamodel, corpus
 
 
