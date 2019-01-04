@@ -130,7 +130,10 @@ predictors = [net.linkprediction.AdamicAdarIndex(paperGraph),
               net.linkprediction.NeighborsMeasureIndex(paperGraph)
               ]
               
-         
+centralities = [net.centrality.PageRank(paperGraph),
+                net.centrality.ApproxBetweenness(paperGraph),
+                net.centrality.EigenvectorCentrality(paperGraph),
+            ]       
 
 
 
@@ -312,18 +315,79 @@ def getDegree(k_x,k_y):
         ny -= 1
         
     return nx, ny
+
+print("Components...")
+components = net.components.ConnectedComponents(paperGraph)
+components.run()
+print("...Done")
+print("Louvain...")
+community = net.community.PLM(paperGraph)
+community.run()
+louvain = community.getPartition()
+print("...Done")
+print("PLP...")
+community = net.community.PLP(paperGraph)
+community.run()
+PLP = community.getPartition()
+print("...Done")
+
+for c in centralities:
+    c.run()
+    
+def getCentralityFeatures(k_x,k_y):
+    id1 = hach[k_x]
+    id2 = hach[k_y]
+    
+    featur = []
+    
+    for c in centralities:
+        featur.append(c.score(id1))
+        featur.append(c.score(id2))
+    
+    return featur
+
+
+def getClusteringFeatures(k_x,k_y):
+    id1 = hach[k_x]
+    id2 = hach[k_y]
+    
+    if louvain.inSameSubset(id1,id2):
+        louv = 1
+    else:
+        louv = 0
+        
+    if PLP.inSameSubset(id1,id2):
+        plp = 1
+    else:
+        plp = 0
+        
+    if components.componentOfNode(id1) == components.componentOfNode(id2):
+        compo = 1
+    else:
+        compo = 0
+        
+    
+    
+    return [louv,plp,compo]
+
     
 def get_features(k_x,k_y):
     
     authorSimilarity = getAuthorSimilarityBis(k_x, k_y)
-    journalSimilarity = getJournalSimilarity(k_x, k_y)
+    #journalSimilarity = getJournalSimilarity(k_x, k_y)
     abstractCosine = getAbstractCosine(k_x,k_y)
     ldaabstractCosine = getAbstractLdaCosine(k_x,k_y)
     titleCosine = getTitleCosine(k_x,k_y)  
     yearDifference = getYearDifference(k_x,k_y)
     #neighboursJIndex,neighboursJIndexBis = getNeighboursJIndex(k_x,k_y)
     #k_x_DegreeIndex, k_y_DegreeIndex = getDegree(k_x,k_y)
-    return [authorSimilarity, journalSimilarity, abstractCosine, ldaabstractCosine,titleCosine, yearDifference] + [p.run(hach[k_x],hach[k_y]) for p in predictors]
+    return [authorSimilarity, abstractCosine,titleCosine,ldaabstractCosine, yearDifference] + [p.run(hach[k_x],hach[k_y]) for p in predictors]
+
+
+
+
+    
+
 
 """
     return [authorSimilarity, abstractCosine, titleCosine, yearDifference,neighboursJIndex,neighboursJIndexBis]
@@ -383,6 +447,9 @@ from xgboost import XGBClassifier
 
 Y_train = np.array(Y_train)
 
+
+original_X_train = X_train[:]
+
 df = pd.DataFrame(np.concatenate((X_train,Y_train.reshape(len(Y_train),1 )),axis=1))
 df = df.dropna()
 n = df.shape[1]
@@ -394,7 +461,7 @@ Y_true = np.array(Y_true)
 X_train = X_train.reindex()
 Y_train = Y_train.reindex()
 
-
+"""
 print("Computing PCA...")
 
 
@@ -408,8 +475,8 @@ X_train_reduced = pca.transform(X_train)
 
 
 print("...Done")
-
-def predict(estimator,X,reduced=False):
+"""
+def predict(classifier,X,reduced=False):
     Y = []
     t = 0
     for k in X:
@@ -425,13 +492,33 @@ def predict(estimator,X,reduced=False):
             if reduced:
                 Y.append(classifier.predict(pca.transform([k]))[0])
             else:
-                Y.append(classifier.predict([k])[0])
+                Y.append(int(classifier.predict([k])[0]))
     print("fefzefze : " + str(t) )
     return Y
 
 
+def predict_proba(classifier,X,reduced=False):
+    Y = []
+    t = 0
+    for k in X:
+        print(X)
+        thereIsNan = False
+        for i in k:
+            if np.isnan(i):
+                thereIsNan=True
+        if thereIsNan:
+            t+=1
+            Y.append(0.)
+        else:
+            if reduced:
+                Y.append(classifier.predict_proba(pca.transform([k]))[0][1])
+            else:
+                Y.append(classifier.predict_proba([k])[0][1])
+    print("fefzefze : " + str(t) )
+    return Y
+
+"""
 classifiers = [
-    KNeighborsClassifier(),
     DecisionTreeClassifier(max_depth=5),
     RandomForestClassifier(n_estimators=5, max_features=1, max_depth=5),
     RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
@@ -443,13 +530,31 @@ classifiers = [
     
 ]
 
-"""
+
 n_estimators_for_random_forest = [50, 100, 200]
 max_features_for_random_forest = [3]
 max_depth_for_random_forest = [5, 10, None]
 
 random_forest_classfiers = {}
-random_forest_scores = {}
+random_forest_sc
+scores = []
+print("Compute f1 scores of classifiers...")
+for classifier in classifiers:
+    #cross_val_scores.append(cross_val_score(classifier,X=X_data, y=Y_data, scoring='f1', cv=10,verbose=1))
+    
+    print(str(type(classifier)) + " fitting...")
+    classifier.fit(X_train, Y_train)
+    print("...Fitting done")
+    
+
+    Y_pred = predict(classifier,X_test)
+    score = f1_score(Y_true,Y_pred)
+    scores.append(score)
+    print(str(type(classifier)) + " : " + str(score) )
+    #print("...cross_val_score computed...")
+print("...All scores computed")
+
+ores = {}
 
 
 print("Compute random forest classifiers with various features...")
@@ -479,7 +584,7 @@ for key_classifier in random_forest_classfiers.keys():
 
 print("...All scores computed for random forests")
 """
-
+"""
 scores = []
 print("Compute f1 scores of classifiers...")
 for classifier in classifiers:
@@ -489,26 +594,141 @@ for classifier in classifiers:
     classifier.fit(X_train, Y_train)
     print("...Fitting done")
     
-    """
-    Y_pred = []
-    
-    for k in X_test:
-        thereIsNan = False
-        for i in k:
-            if np.isnan(i):
-                thereIsNan=True
-        if thereIsNan:
-            Y_pred.append(0)
-        else:
-            Y_pred.append(classifier.predict([k])[0])
-    """
-     
+
     Y_pred = predict(classifier,X_test)
     score = f1_score(Y_true,Y_pred)
     scores.append(score)
     print(str(type(classifier)) + " : " + str(score) )
     #print("...cross_val_score computed...")
 print("...All scores computed")
+
+"""
+"""
+model = keras.models.Sequential()
+model.add(keras.layers.Dense(10, input_dim=21, kernel_initializer='normal', activation='relu'))
+model.add(keras.layers.Dense(100, kernel_initializer='normal', activation='relu'))
+model.add(keras.layers.Dense(100, kernel_initializer='normal', activation='relu'))
+model.add(keras.layers.Dense(10, kernel_initializer='normal', activation='relu'))
+
+model.add(keras.layers.Dense(1, kernel_initializer='normal', activation='sigmoid'))
+# Compile model
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+classifier = model
+classifier.fit(X_train,Y_train,epochs=5)
+
+
+classifiers.append(classifier)
+
+X_train2 = np.delete(X_train.values,1,axis=1)
+X_train2 = np.delete(X_train2,14,axis=1)
+X_train2 = np.delete(X_train2,14,axis=1)
+
+X_train2 = np.delete(X_train2,14,axis=1)
+
+X_train2 = np.delete(X_train2,14,axis=1)
+
+X_train2 = np.delete(X_train2,14,axis=1)
+X_train2 = np.delete(X_train2,14,axis=1)
+
+X_test2 = np.delete(X_test,1,axis=1)
+X_test2 = np.delete(X_test2,14,axis=1)
+X_test2 = np.delete(X_test2,14,axis=1)
+
+X_test2 = np.delete(X_test2,14,axis=1)
+
+X_test2 = np.delete(X_test2,14,axis=1)
+
+X_test2 = np.delete(X_test2,14,axis=1)
+X_test2 = np.delete(X_test2,14,axis=1)
+
+"""
+classifiers = []
+
+classifiers.append(keras.models.Sequential())
+
+classifiers[-1].add(keras.layers.Dense(10, input_dim=14, kernel_initializer='normal', activation='relu'))
+classifiers[-1].add(keras.layers.Dense(100, kernel_initializer='normal', activation='relu'))
+classifiers[-1].add(keras.layers.Dense(100, kernel_initializer='normal', activation='relu'))
+classifiers[-1].add(keras.layers.Dense(10, kernel_initializer='normal', activation='relu'))
+
+classifiers[-1].add(keras.layers.Dense(1, kernel_initializer='normal', activation='sigmoid'))
+# Compile model
+classifiers[-1].compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+
+classifiers[-1].fit(X_train2,Y_train,epochs=5)
+
+classifiers.append(keras.models.Sequential())
+
+classifiers[-1].add(keras.layers.Dense(20, input_dim=11, kernel_initializer='normal', activation='relu'))
+classifiers[-1].add(keras.layers.Dropout(0.5))
+classifiers[-1].add(keras.layers.Dense(20, kernel_initializer='normal', activation='relu'))
+
+classifiers[-1].add(keras.layers.Dense(1, kernel_initializer='normal', activation='sigmoid'))
+# Compile model
+classifiers[-1].compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+
+
+
+scores = []
+for i in range(100):  
+    classifiers[-1].fit(X_train.values,Y_train,epochs=1,batch_size=100000)
+    
+    
+    
+    preds=[classifiers[-1].predict(X_test)]
+    
+    
+    
+    for y in preds:
+        Y_eee = []
+        for i in y:
+            if i > 0.5:
+                Y_eee.append(1)
+            else:
+                Y_eee.append(0)
+        score = f1_score(Y_eee,Y_true)
+        scores.append(score)
+        print(score)
+    
+
+
+
+"""
+
+new_X_train = []
+
+print("Computing new X_train...")
+
+
+n_train = len(original_X_train)
+for i in range(len(ev)):
+    element = ev[i]
+    new_X_train.append(get_features2(element[0],element[1],i))
+    p = len(new_X_train)
+    if(p % (n_train//100) == 0):
+        print(p//(n_train//100))
+print("...Done")
+
+new_X_test=[]
+n_train = len(X_test)
+for i in range(len(ev_test)):
+    element = ev[i]
+    new_X_test.append(get_features2(element[0],element[1],i))
+    p = len(new_X_train)
+    if(p % (n_train//100) == 0):
+        print(p//(n_train//100))
+print("...Done")
+
+
+"""
+
+
+
+
+
 
 """
 print("Stacking...")
@@ -593,13 +813,14 @@ with open("data/improved_predictions3.csv","w") as pred1:
 
 
 """
+"""
 for i in range(20):
     classifier = XGBClassifier(n_estimators=100*i,objective="binary:logistic")
     classifier.fit(X_train.values,Y_train.values)
     y_pred = classifier.predict(X_test)
     print(f1_score(Y_true,y_pred))
 
-
+"""
 
 
 """
